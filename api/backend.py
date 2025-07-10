@@ -6,8 +6,10 @@ from pydantic import BaseModel
 import easyocr
 from openai import OpenAI
 
-# 🔐 Set OpenAI API Key
-os.environ["OPENAI_API_KEY"] = "sk-proj-9v9AK9o7-..."  # keep this secret
+from openai import OpenAI
+
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
 client = OpenAI()
 
 app = FastAPI()
