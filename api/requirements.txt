@@ -1,8 +1,6 @@
+setuptools>=61.0.0
+wheel
 fastapi
 uvicorn
 easyocr
 numpy==1.23.5
-pydantic
-setuptools>=61.0.0
-wheel
-
