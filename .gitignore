@@ -1,0 +1,36 @@
+# === Node.js dependencies ===
+node_modules/
+ocr-frontend/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# === Python virtual environments ===
+api/venv/
+api/venv310/
+
+# === Build output ===
+ocr-frontend/build/
+build/
+coverage/
+dist/
+
+# === Python cache ===
+__pycache__/
+*.pyc
+
+# === Environment files ===
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# === Misc OS files ===
+.DS_Store
+
+# === Others ===
+.pnp/
+.pnp.js
+.vscode/
+*.swp

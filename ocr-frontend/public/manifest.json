@@ -1,0 +1,22 @@
+{
+  "short_name": "NutriScan",
+  "name": "NutriScan AI - Smart Food Label Scanner",
+  "icons": [
+    {
+      "src": "logo.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "logo.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#4f46e5",
+  "description": "NutriScan AI helps users scan food labels, get health scores, and receive personalized dietary suggestions with AI assistance."
+}
