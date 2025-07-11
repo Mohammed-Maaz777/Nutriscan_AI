@@ -10,10 +10,7 @@ app = FastAPI()
 
 # 🌐 CORS settings
 origins = [
-    "http://localhost",
-    "http://localhost:3000",
-    "http://localhost.tiangolo.com",
-    "https://localhost.tiangolo.com"
+    "https://nutriscan-ai.vercel.app"  # Replace with your actual Vercel URL
 ]
 
 app.add_middleware(
