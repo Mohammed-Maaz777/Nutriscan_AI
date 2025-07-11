@@ -25,6 +25,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 # 📁 Ensure images directory exists
 os.makedirs("images", exist_ok=True)
 
