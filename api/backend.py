@@ -43,7 +43,7 @@ async def read_items():
         status_code=200,
     )
 
-# 📤 Upload image and perform OCR
+# 📤 Upload image and perform OCR using Tesseract
 @app.post("/upload")
 async def create_upload_file(
     file: UploadFile = File(...),
@@ -63,6 +63,7 @@ async def create_upload_file(
 
     except Exception as e:
         return {"error": str(e)}
+
 
 # 🖼️ OCR from stream (optional)
 @app.post("/uploadstream")
@@ -93,7 +94,6 @@ async def log_scan(data: ScanData):
         return {"message": "Scan logged successfully"}
     except Exception as e:
         return {"error": str(e)}
-
 
 # 📜 Retrieve scan logs
 @app.get("/scans")
