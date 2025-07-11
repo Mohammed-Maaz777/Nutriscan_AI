@@ -5,13 +5,17 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel
 import easyocr
 
+# 🔁 Load OCR reader once (avoid crashing the server)
+reader = easyocr.Reader(['en'], gpu=False)
 
 app = FastAPI()
 
 # 🌐 CORS settings
 origins = [
-    "https://nutriscan-ai.vercel.app"  # Replace with your actual Vercel URL
+    "https://nutriscan-ai-dun.vercel.app",  # your actual Vercel frontend
+    "http://localhost:3000",                # local testing (optional)
 ]
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -42,11 +46,11 @@ async def read_items():
         status_code=200,
     )
 
-# 📤 Upload image and perform OCR with dynamic language
+# 📤 Upload image and perform OCR
 @app.post("/upload")
 async def create_upload_file(
     file: UploadFile = File(...),
-    lang: str = Form("en")  # default to English
+    lang: str = Form("en")
 ):
     try:
         print(f"Received file: {file.filename} with lang: {lang}")
@@ -54,12 +58,7 @@ async def create_upload_file(
         with open(file_location, "wb+") as file_object:
             file_object.write(await file.read())
 
-        # 🌐 Load EasyOCR reader with specified languages (support multiple langs split by comma)
-        lang_list = lang.split(",") if "," in lang else [lang]
-        if "en" not in lang_list:
-            lang_list.append("en")  # Always add English fallback
-
-        reader = easyocr.Reader(lang_list)
+        # 🧠 Use preloaded EasyOCR reader (already includes 'en')
         result = reader.readtext(file_location)
         extracted_text = '\n'.join([text[1] for text in result])
         return {"text": extracted_text}
@@ -72,7 +71,6 @@ async def create_upload_file(
 async def read_image(file: UploadFile = File(...)):
     try:
         content = await file.read()
-        reader = easyocr.Reader(['en'])
         result = reader.readtext(content)
         res = '\n'.join([text[1] for text in result])
         return {"text": res}
