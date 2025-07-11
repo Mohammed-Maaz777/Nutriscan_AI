@@ -60,7 +60,7 @@ const OCRPage = () => {
     formData.append('file', selectedFile);
 
     try {
-      const res = await fetch('http://127.0.0.1:8000/upload', {
+      const res = await fetch('https://nutriscan-ai-inf5.onrender.com/upload', {
         method: 'POST',
         body: formData,
       });
@@ -78,7 +78,7 @@ const OCRPage = () => {
       const warnings = analyzeIngredients(extractedText);
 
       if (userData?.name && userData?.email) {
-        await fetch("http://127.0.0.1:8000/log_scan", {
+        await fetch("https://nutriscan-ai-inf5.onrender.com/log_scan", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
