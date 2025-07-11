@@ -30,15 +30,15 @@ const OCRPage = () => {
   const [aiRecommendation, setAiRecommendation] = useState("");
 
   const { state: userData } = useLocation();
+
   const allergyList = typeof userData?.allergies === "string"
-    ? userData.allergies.toLowerCase().split(",").map((a) => a.trim())
+    ? userData.allergies.toLowerCase().split(",").map(a => a.trim())
     : Array.isArray(userData?.allergies)
-      ? userData.allergies
+      ? userData.allergies.map(a => a.toLowerCase())
       : [];
 
   useEffect(() => {
-    const saved = localStorage.getItem("darkMode") === "true";
-    setDarkMode(saved);
+    setDarkMode(localStorage.getItem("darkMode") === "true");
   }, []);
 
   useEffect(() => {
@@ -54,28 +54,29 @@ const OCRPage = () => {
 
   const handleUpload = async () => {
     if (!selectedFile) return alert("Please select a file first");
-
     setLoading(true);
+
     const formData = new FormData();
     formData.append('file', selectedFile);
 
     try {
       const res = await fetch('https://nutriscan-ai-inf5.onrender.com/upload', {
         method: 'POST',
-        body: formData,
+        body: formData
       });
 
+      if (!res.ok) throw new Error("Server response error");
+
       const data = await res.json();
-      const extractedText = data.text || JSON.stringify(data);
+      const extractedText = data.text || "No text found.";
       setText(extractedText);
       setShowToast(true);
       setTimeout(() => setShowToast(false), 3000);
 
-      // Static recommendation (replacing AI)
-      setAiRecommendation("🔄 Try sugar-free or allergy-friendly alternatives.");
-
-      const healthScore = getHealthScore(extractedText, allergyList);
+      const score = getHealthScore(extractedText, allergyList);
       const warnings = analyzeIngredients(extractedText);
+
+      setAiRecommendation("🔄 Try sugar-free or allergy-friendly alternatives.");
 
       if (userData?.name && userData?.email) {
         await fetch("https://nutriscan-ai-inf5.onrender.com/log_scan", {
@@ -85,7 +86,7 @@ const OCRPage = () => {
             name: userData.name,
             email: userData.email,
             scan_text: extractedText,
-            health_score: healthScore,
+            health_score: score,
             warnings: warnings,
           }),
         });
@@ -111,21 +112,15 @@ const OCRPage = () => {
       warnings.push("⚠️ Not suitable for diabetics");
     }
 
-    if (userData?.allergies) {
-      const rawAllergies = Array.isArray(userData.allergies)
-        ? userData.allergies
-        : userData.allergies.split(',');
-
-      rawAllergies.forEach((allergy) => {
-        const a = allergy.toLowerCase().trim();
-        if (lowerText.includes(a)) {
-          warnings.push(`⚠️ Contains allergen: ${a}`);
-        }
-      });
-    }
+    allergyList.forEach((a) => {
+      if (lowerText.includes(a)) {
+        warnings.push(`⚠️ Contains allergen: ${a}`);
+      }
+    });
 
     return warnings;
   };
+
 const getRecommendations = (text, userData = {}) => {
   const recs = [];
   const lowerText = text.toLowerCase();
