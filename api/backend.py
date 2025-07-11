@@ -3,10 +3,8 @@ from fastapi import FastAPI, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel
-import easyocr
-
-# 🔁 Load OCR reader once (avoid crashing the server)
-reader = easyocr.Reader(['en'], gpu=False)
+from PIL import Image
+import pytesseract
 
 app = FastAPI()
 
@@ -16,7 +14,6 @@ origins = [
     "http://localhost:3000",                # local testing (optional)
 ]
 
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -24,7 +21,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 
 # 📁 Ensure images directory exists
 os.makedirs("images", exist_ok=True)
@@ -51,7 +47,7 @@ async def read_items():
 @app.post("/upload")
 async def create_upload_file(
     file: UploadFile = File(...),
-    lang: str = Form("en")
+    lang: str = Form("eng")  # default to English (Tesseract lang code)
 ):
     try:
         print(f"Received file: {file.filename} with lang: {lang}")
@@ -59,10 +55,11 @@ async def create_upload_file(
         with open(file_location, "wb+") as file_object:
             file_object.write(await file.read())
 
-        # 🧠 Use preloaded EasyOCR reader (already includes 'en')
-        result = reader.readtext(file_location)
-        extracted_text = '\n'.join([text[1] for text in result])
-        return {"text": extracted_text}
+        # 🧠 Use pytesseract for OCR
+        image = Image.open(file_location)
+        extracted_text = pytesseract.image_to_string(image, lang=lang)
+
+        return {"text": extracted_text.strip()}
 
     except Exception as e:
         return {"error": str(e)}
@@ -72,9 +69,9 @@ async def create_upload_file(
 async def read_image(file: UploadFile = File(...)):
     try:
         content = await file.read()
-        result = reader.readtext(content)
-        res = '\n'.join([text[1] for text in result])
-        return {"text": res}
+        image = Image.open(io.BytesIO(content))
+        extracted_text = pytesseract.image_to_string(image)
+        return {"text": extracted_text.strip()}
     except Exception as e:
         return {"error": str(e)}
 
@@ -96,6 +93,7 @@ async def log_scan(data: ScanData):
         return {"message": "Scan logged successfully"}
     except Exception as e:
         return {"error": str(e)}
+
 
 # 📜 Retrieve scan logs
 @app.get("/scans")
