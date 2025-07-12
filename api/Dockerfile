@@ -1,27 +1,19 @@
-# Use official Python base image
+# Use official Python image
 FROM python:3.10
 
-# Set working directory
+# Install system dependencies
+RUN apt-get update && \
+    apt-get install -y tesseract-ocr libtesseract-dev libleptonica-dev pkg-config poppler-utils && \
+    apt-get clean
+
+# Set workdir
 WORKDIR /app
 
-# Install system dependencies required for easyocr
-RUN apt-get update && apt-get install -y \
-    libgl1 \
-    libglib2.0-0 \
-    libsm6 \
-    libxext6 \
-    libxrender-dev \
- && rm -rf /var/lib/apt/lists/*
-
-# Copy project files
-COPY . .
+# Copy app files
+COPY . /app
 
 # Install Python dependencies
-RUN pip install --upgrade pip
-RUN pip install -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Expose port
-EXPOSE 8000
-
-# Start the FastAPI server
-CMD ["uvicorn", "backend:app", "--host", "0.0.0.0", "--port", "8000"]
+# Run the FastAPI app
+CMD ["uvicorn", "backend:app", "--host", "0.0.0.0", "--port", "10000"]

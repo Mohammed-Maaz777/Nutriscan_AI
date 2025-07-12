@@ -1,2 +1,9 @@
-build:
-  pythonVersion: 3.10
+services:
+  - type: web
+    name: nutriscan-backend
+    env: docker
+    repo: https://github.com/Mohammed-Maaz777/Nutriscan_AI
+    branch: master
+    rootDir: api
+    plan: free
+    autoDeploy: true
