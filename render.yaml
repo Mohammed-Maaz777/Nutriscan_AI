@@ -5,5 +5,5 @@ services:
     repo: https://github.com/Mohammed-Maaz777/Nutriscan_AI
     branch: master
     rootDir: api
-    plan: free
+    plan: free #edited
     autoDeploy: true
