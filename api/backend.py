@@ -6,15 +6,15 @@ from pydantic import BaseModel
 from PIL import Image
 import pytesseract
 
-# ✅ Tell pytesseract where tesseract is (important for Render)
+# ✅ Set Tesseract path (required for Render.com)
 pytesseract.pytesseract.tesseract_cmd = "/usr/bin/tesseract"
 
 app = FastAPI()
 
-# 🌐 CORS settings
+# 🌐 CORS configuration to allow frontend access
 origins = [
-    "https://nutriscan-ai-dun.vercel.app",  # your actual Vercel frontend
-    "http://localhost:3000",                # local testing (optional)
+    "https://nutriscan-ai-dun.vercel.app",  # Deployed frontend (Vercel)
+    "http://localhost:3000",                # Local frontend (development)
 ]
 
 app.add_middleware(
@@ -25,10 +25,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 📁 Ensure images directory exists
+# 📁 Create image storage folder if it doesn't exist
 os.makedirs("images", exist_ok=True)
 
-# 🏠 Home endpoint
+# 🏠 Basic health check endpoint
 @app.get("/", response_class=HTMLResponse)
 async def read_items():
     return HTMLResponse(
@@ -36,7 +36,7 @@ async def read_items():
         <html>
             <head><title>FastAPI</title></head>
             <body>
-                <h1>Server is Running</h1>
+                <h1>✅ NutriScan OCR Backend is Running</h1>
             </body>
             <footer>
                 <p style="text-align: center">&#169; csgeek</p>
@@ -46,38 +46,53 @@ async def read_items():
         status_code=200,
     )
 
-# 📤 Upload image and perform OCR using Tesseract
+
 @app.post("/upload")
 async def create_upload_file(
     file: UploadFile = File(...),
     lang: str = Form("eng")  # default to English (Tesseract lang code)
 ):
     try:
-        print(f"Received file: {file.filename} with lang: {lang}")
+        print(f"📥 Received file: {file.filename} with lang: {lang}")
         file_location = f"images/{file.filename}"
+        
+        # Save uploaded image
         with open(file_location, "wb+") as file_object:
             file_object.write(await file.read())
 
-        # 🧠 Use pytesseract for OCR
-        image = Image.open(file_location)
-        extracted_text = pytesseract.image_to_string(image, lang=lang)
+        # 🧠 Open and preprocess image
+        image = Image.open(file_location).convert("RGB")
+        extracted_text = pytesseract.image_to_string(image, lang=lang).strip()
 
-        return {"text": extracted_text.strip()}
+        print("📄 Extracted text:", extracted_text or "[No text found]")
+
+        return {"text": extracted_text} if extracted_text else {
+            "text": "",
+            "message": "⚠️ No text found in the image."
+        }
 
     except Exception as e:
-        return {"error": str(e)}
+        print("❌ Error in /upload:", str(e))
+        return JSONResponse(content={"error": "OCR processing failed", "details": str(e)}, status_code=500)
 
 
-# 🖼️ OCR from stream (optional)
+# 🖼️ OCR directly from image stream (optional fallback route)
 @app.post("/uploadstream")
 async def read_image(file: UploadFile = File(...)):
     try:
         content = await file.read()
-        image = Image.open(io.BytesIO(content))
-        extracted_text = pytesseract.image_to_string(image)
-        return {"text": extracted_text.strip()}
+        image = Image.open(BytesIO(content)).convert("RGB")
+        extracted_text = pytesseract.image_to_string(image).strip()
+
+        return {"text": extracted_text} if extracted_text else {
+            "text": "",
+            "message": "⚠️ No text found in image stream."
+        }
+
     except Exception as e:
-        return {"error": str(e)}
+        print("❌ Error in /uploadstream:", str(e))
+        return JSONResponse(content={"error": "Stream OCR failed", "details": str(e)}, status_code=500)
+
 
 # 🧾 Scan log model
 class ScanData(BaseModel):
@@ -85,7 +100,8 @@ class ScanData(BaseModel):
     email: str
     scan_text: str
     health_score: int
-    warnings: list
+    warnings: list[str]
+
 
 # 💾 Save scan logs
 @app.post("/log_scan")
@@ -94,30 +110,35 @@ async def log_scan(data: ScanData):
         log_entry = f"{data.name} | {data.email} | Score: {data.health_score} | Warnings: {', '.join(data.warnings)}\n"
         with open("user_scans.log", "a") as f:
             f.write(log_entry)
-        return {"message": "Scan logged successfully"}
+        return {"message": "✅ Scan logged successfully"}
     except Exception as e:
-        return {"error": str(e)}
+        print("❌ Error in /log_scan:", str(e))
+        return JSONResponse(content={"error": "Log writing failed", "details": str(e)}, status_code=500)
+
 
 # 📜 Retrieve scan logs
 @app.get("/scans")
 async def get_scans():
     logs_file = "user_scans.log"
     if not os.path.exists(logs_file):
-        return JSONResponse(content={"logs": []})
+        return {"logs": []}
 
     logs = []
-    with open(logs_file, "r") as f:
-        for line in f:
-            try:
+    try:
+        with open(logs_file, "r") as f:
+            for line in f:
                 parts = line.strip().split('|')
+                if len(parts) < 3:
+                    continue
+
                 name = parts[0].strip()
                 email = parts[1].strip()
                 score_part = parts[2].strip()
                 warnings_part = parts[3].strip() if len(parts) > 3 else "Warnings: None"
 
                 health_score = int(score_part.replace("Score:", "").strip())
-                warnings = warnings_part.replace("Warnings:", "").strip()
-                warnings_list = [w.strip() for w in warnings.split(",")] if warnings else []
+                warnings_text = warnings_part.replace("Warnings:", "").strip()
+                warnings_list = [w.strip() for w in warnings_text.split(",")] if warnings_text else []
 
                 logs.append({
                     "name": name,
@@ -126,7 +147,7 @@ async def get_scans():
                     "warnings": warnings_list,
                     "scan_text": "Full scan text not saved"
                 })
-            except:
-                continue
+    except Exception as e:
+        print("❌ Error in /scans:", str(e))
 
     return {"logs": logs}
