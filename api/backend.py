@@ -6,6 +6,9 @@ from pydantic import BaseModel
 from PIL import Image
 import pytesseract
 
+# ✅ Tell pytesseract where tesseract is (important for Render)
+pytesseract.pytesseract.tesseract_cmd = "/usr/bin/tesseract"
+
 app = FastAPI()
 
 # 🌐 CORS settings
