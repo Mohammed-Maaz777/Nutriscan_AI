@@ -60,7 +60,7 @@ const OCRPage = () => {
     formData.append('file', selectedFile);
 
     try {
-      const res = await fetch('https://nutriscan-ai-inf5.onrender.com/upload', {
+      const res = await fetch("https://nutriscan-ai-2.onrender.com", {
         method: 'POST',
         body: formData
       });

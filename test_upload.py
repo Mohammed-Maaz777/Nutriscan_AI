@@ -1,6 +1,7 @@
+# test_upload.py
 import requests
 
-url = "https://nutriscan-ai-inf5.onrender.com/upload"
+url = "https://nutriscan-ai-2.onrender.com/upload"
 files = {
     "file": open(r"C:\Users\Mohammed Maaz\Pictures\Screenshots\picture1.png", "rb")
 }
