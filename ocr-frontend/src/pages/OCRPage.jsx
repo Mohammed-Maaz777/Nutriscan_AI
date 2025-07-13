@@ -5,20 +5,46 @@ import { useLocation } from 'react-router-dom';
 
 const getHealthScore = (text, allergies = []) => {
   let score = 100;
-  const lowerText = text.toLowerCase();
+  const lowerText = text.toLowerCase().replace(/\s+/g, ' ');
 
   if (lowerText.includes("sugar")) score -= 30;
-  if (lowerText.includes("palm")) score -= 20;
+  if (lowerText.includes("palm") || lowerText.includes("paimai")) score -= 20;
   if (lowerText.match(/e\d+/)) score -= 10;
 
+  const allergySynonyms = {
+    dairy: ["milk", "cheese", "butter", "yogurt", "cream"],
+    nuts: ["almond", "cashew", "peanut", "walnut", "hazelnut"],
+    gluten: ["wheat", "barley", "rye", "malt"],
+    soy: ["soy", "soya", "soybean"],
+    egg: ["egg", "albumen"],
+    shellfish: ["shrimp", "prawn", "crab", "lobster"],
+    fish: ["salmon", "tuna", "cod", "trout"],
+  };
+
   allergies.forEach((allergy) => {
-    if (lowerText.includes(allergy)) {
-      score -= 30;
-    }
+    const keyword = allergy.toLowerCase().trim();
+    const relatedTerms = allergySynonyms[keyword] || [keyword];
+
+    relatedTerms.forEach((term) => {
+      if (lowerText.includes(term)) {
+        console.log(`⚠️ Found allergen "${term}" in text`);
+        score -= 30;
+      } else {
+        console.log(`🔍 Checked term "${term}" — not found`);
+      }
+    });
   });
+
+  console.log("🧾 Final Cleaned Text:", lowerText);
+  console.log("💡 Allergy Input:", allergies);
+  console.log("✅ Final Score:", score);
 
   return Math.max(0, score);
 };
+
+
+
+
 
 const OCRPage = () => {
   const [selectedFile, setSelectedFile] = useState(null);
@@ -58,9 +84,10 @@ const OCRPage = () => {
 
     const formData = new FormData();
     formData.append('file', selectedFile);
+    formData.append('lang', 'eng'); // ✅ Make sure lang is sent
 
     try {
-      const res = await fetch("https://nutriscan-ai-2.onrender.com", {
+      const res = await fetch("https://nutriscan-ai-2.onrender.com/upload", {
         method: 'POST',
         body: formData
       });
@@ -100,26 +127,50 @@ const OCRPage = () => {
     setLoading(false);
   };
 
+
   const analyzeIngredients = (text) => {
-    const warnings = [];
-    const lowerText = text.toLowerCase();
+  const warnings = [];
+  const lowerText = text.toLowerCase();
 
-    if (lowerText.includes("sugar")) warnings.push("⚠️ High sugar content");
-    if (lowerText.includes("palm")) warnings.push("⚠️ Contains palm oil");
-    if (lowerText.match(/e\d+/)) warnings.push("⚠️ Additives present (E-numbers)");
+  if (lowerText.includes("sugar")) warnings.push("⚠️ High sugar content");
+  if (lowerText.includes("palm") || lowerText.includes("paimai")) warnings.push("⚠️ Contains palm oil");
+  if (lowerText.match(/e\d+/)) warnings.push("⚠️ Additives present (E-numbers)");
 
-    if (userData?.diabetes && lowerText.includes("sugar")) {
-      warnings.push("⚠️ Not suitable for diabetics");
-    }
-
-    allergyList.forEach((a) => {
-      if (lowerText.includes(a)) {
-        warnings.push(`⚠️ Contains allergen: ${a}`);
-      }
-    });
-
-    return warnings;
+  // Advanced allergy detection
+  const allergySynonyms = {
+    dairy: ["milk", "cheese", "butter", "yogurt", "cream"],
+    nuts: ["almond", "cashew", "peanut", "walnut", "hazelnut"],
+    gluten: ["wheat", "barley", "rye", "malt"],
+    soy: ["soy", "soya", "soybean"],
+    egg: ["egg", "albumen"],
+    shellfish: ["shrimp", "prawn", "crab", "lobster"],
+    fish: ["salmon", "tuna", "cod", "trout"],
   };
+
+  if (userData?.allergies) {
+    const rawAllergies = Array.isArray(userData.allergies)
+      ? userData.allergies
+      : userData.allergies.split(',');
+
+    rawAllergies.forEach((allergy) => {
+      const keyword = allergy.toLowerCase().trim();
+      const synonyms = allergySynonyms[keyword] || [keyword];
+
+      synonyms.forEach((term) => {
+        if (lowerText.includes(term)) {
+          warnings.push(`⚠️ Contains allergen: ${term}`);
+        }
+      });
+    });
+  }
+
+  if (userData?.diabetes && lowerText.includes("sugar")) {
+    warnings.push("⚠️ Not suitable for diabetics");
+  }
+
+  return warnings;
+};
+
 
 const getRecommendations = (text, userData = {}) => {
   const recs = [];
@@ -134,19 +185,19 @@ const getRecommendations = (text, userData = {}) => {
   );
 
   if (userData.diabetes && lowerText.includes("sugar")) {
-    recs.push("🔄 Try sugar-free alternatives or low-GI snacks.");
+    recs.push("🔄 This product contains sugar. Try sugar-free or low-GI options.");
   }
 
-  if (lowerText.includes("palm")) {
-    recs.push("🌱 Choose olive/sunflower oil over palm oil.");
+  if (lowerText.includes("palm") || lowerText.includes("paimai")) {
+    recs.push("🌻 Try sunflower or olive oil instead of palm oil.");
   }
 
   if (lowerText.match(/e\d+/)) {
-    recs.push("🍏 Avoid additives. Go for whole foods.");
+    recs.push("🚫 Avoid processed additives (E-numbers). Choose natural alternatives.");
   }
 
   if (allergyMatch) {
-    recs.push("🚫 Contains allergens you've listed.");
+    recs.push("⚠️ Contains ingredients that may trigger your listed allergies.");
   }
 
   if (recs.length === 0) {
@@ -156,6 +207,7 @@ const getRecommendations = (text, userData = {}) => {
   return recs;
 };
 
+// 🧾 JSX Layout
 return (
   <motion.div className="min-h-screen p-4 sm:p-6">
     <motion.div
@@ -188,60 +240,61 @@ return (
         </motion.button>
       </div>
 
-      {/* File Upload */}
-      <motion.div
-        initial={{ x: -50, opacity: 0 }}
-        animate={{ x: 0, opacity: 1 }}
-        transition={{ delay: 0.3 }}
-        className="flex flex-col"
-      >
-        <label
-          htmlFor="file-upload"
-          className="cursor-pointer w-full px-4 py-2 mb-4 border border-dashed border-gray-400 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-800 dark:text-white text-center hover:border-indigo-500"
-        >
-          {selectedFile ? selectedFile.name : "Click to select image"}
-          <input
-            id="file-upload"
-            type="file"
-            accept="image/*"
-            onChange={handleFileChange}
-            className="hidden"
-          />
-        </label>
 
-        <motion.button
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={handleUpload}
-          disabled={loading}
-          className={`w-full flex justify-center items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-300 ${
-            loading ? "opacity-70 cursor-not-allowed" : ""
-          }`}
-        >
-          {loading ? (
-            <Loader2 className="animate-spin h-5 w-5" />
-          ) : (
-            <CloudUpload className="w-5 h-5" />
-          )}
-          {loading ? "Scanning..." : "Upload & Scan"}
-        </motion.button>
-{/* 🖼️ Image Preview */}
-{preview && (
-  <motion.div
-    initial={{ opacity: 0, y: 10 }}
-    animate={{ opacity: 1, y: 0 }}
-    transition={{ delay: 0.5 }}
-    className="mt-6"
+      {/* 📤 File Upload */}
+<motion.div
+  initial={{ x: -50, opacity: 0 }}
+  animate={{ x: 0, opacity: 1 }}
+  transition={{ delay: 0.3 }}
+  className="flex flex-col"
+>
+  <label
+    htmlFor="file-upload"
+    className="cursor-pointer w-full px-4 py-2 mb-4 border border-dashed border-gray-400 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-800 dark:text-white text-center hover:border-indigo-500"
   >
-    <h2 className="font-semibold mb-2">Preview:</h2>
-    <img
-      src={preview}
-      alt="Uploaded preview"
-      className="rounded-xl border shadow w-full object-cover max-h-64 transition-transform duration-300 hover:scale-105"
+    {selectedFile ? selectedFile.name : "Click to select image"}
+    <input
+      id="file-upload"
+      type="file"
+      accept="image/*"
+      onChange={handleFileChange}
+      className="hidden"
     />
-  </motion.div>
-)}
+  </label>
 
+  <motion.button
+    whileHover={{ scale: 1.05 }}
+    whileTap={{ scale: 0.95 }}
+    onClick={handleUpload}
+    disabled={loading}
+    className={`w-full flex justify-center items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-300 ${
+      loading ? "opacity-70 cursor-not-allowed" : ""
+    }`}
+  >
+    {loading ? (
+      <Loader2 className="animate-spin h-5 w-5" />
+    ) : (
+      <CloudUpload className="w-5 h-5" />
+    )}
+    {loading ? "Scanning..." : "Upload & Scan"}
+  </motion.button>
+
+  {/* 🖼️ Image Preview */}
+  {preview && (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.5 }}
+      className="mt-6"
+    >
+      <h2 className="font-semibold mb-2">Preview:</h2>
+      <img
+        src={preview}
+        alt="Uploaded preview"
+        className="rounded-xl border shadow w-full object-cover max-h-64 transition-transform duration-300 hover:scale-105"
+      />
+    </motion.div>
+  )}
 </motion.div>
 
 {/* 🧾 Results Display */}
@@ -258,90 +311,101 @@ return (
         className="space-y-3 max-h-[300px] overflow-y-auto pr-2 custom-scroll"
       >
         <AnimatePresence>
-          {text.split('\n').map((line, idx) => (
-            <motion.li
-              key={idx}
-              initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 10 }}
-              className="bg-indigo-50 dark:bg-gray-700 border dark:border-gray-600 p-3 rounded-xl shadow-sm flex items-start gap-2 hover:scale-[1.02] transition-transform"
-            >
-              <span className="text-indigo-600 dark:text-indigo-300 font-bold">•</span>
-              <span>{line}</span>
-            </motion.li>
-          ))}
+          {text
+  .split('\n')
+  .map(line => line.trim())
+  .filter(line => line !== "")
+  .map((line, idx) => (
+    <motion.li
+      key={idx}
+      initial={{ opacity: 0, x: -10 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: 10 }}
+      className="bg-indigo-50 dark:bg-gray-700 border dark:border-gray-600 p-3 rounded-xl shadow-sm flex items-start gap-2 hover:scale-[1.02] transition-transform"
+    >
+      <span className="text-indigo-600 dark:text-indigo-300 font-bold">•</span>
+      <span>{line}</span>
+    </motion.li>
+))}
+
+
         </AnimatePresence>
       </motion.ul>
 
-      {/* Warnings Section */}
-      {analyzeIngredients(text).length > 0 && (
-        <div className="mt-6">
-          <h2 className="text-lg font-semibold mb-2 text-red-600 dark:text-red-400">
-            ⚠️ Warnings:
-          </h2>
-          <ul className="list-disc pl-5 space-y-1 text-sm">
-            {analyzeIngredients(text).map((item, idx) => (
-              <li key={idx}>{item}</li>
-            ))}
-          </ul>
-        </div>
-      )}
+      {/* ⚠️ Warnings Section */}
+{typeof text === "string" && analyzeIngredients(text).length > 0 && (
+  <div className="mt-6">
+    <h2 className="text-lg font-semibold mb-2 text-red-600 dark:text-red-400">
+      ⚠️ Warnings:
+    </h2>
+    <ul className="list-disc pl-5 space-y-1 text-sm">
+      {analyzeIngredients(text).map((item, idx) => (
+        <li key={idx}>{item}</li>
+      ))}
+    </ul>
+  </div>
+)}
 
-      {/* Health Score */}
-      <div className="mt-6">
-        <h2 className="font-semibold mb-2">
-          Health Score: {getHealthScore(text, allergyList)} / 100
-        </h2>
-        <div className="w-full h-4 bg-gray-300 rounded-full overflow-hidden">
-          <div
-            className={`h-full transition-all duration-500 ${
-              getHealthScore(text, allergyList) > 70
-                ? 'bg-green-500'
-                : getHealthScore(text, allergyList) > 40
-                ? 'bg-yellow-400'
-                : 'bg-red-500'
-            }`}
-            style={{ width: `${getHealthScore(text, allergyList)}%` }}
-          />
-        </div>
-      </div>
+{/* 🧪 Health Score */}
+{typeof text === "string" && (
+  <div className="mt-6">
+    <h2 className="font-semibold mb-2">
+      Health Score: {getHealthScore(text, allergyList)} / 100
+    </h2>
+    <div className="w-full h-4 bg-gray-300 rounded-full overflow-hidden">
+      <div
+        className={`h-full transition-all duration-500 ${
+          getHealthScore(text, allergyList) > 70
+            ? 'bg-green-500'
+            : getHealthScore(text, allergyList) > 40
+            ? 'bg-yellow-400'
+            : 'bg-red-500'
+        }`}
+        style={{ width: `${getHealthScore(text, allergyList)}%` }}
+      />
+    </div>
+  </div>
+)}
 
-      {/* AI ChatGPT Suggestion */}
-      {aiRecommendation && (
-        <div className="mt-6">
-          <h2 className="text-lg font-semibold mb-2 text-indigo-700 dark:text-indigo-300">
-            🤖 AI Health Suggestion:
-          </h2>
-          <p className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-line">
-            {aiRecommendation}
-          </p>
-        </div>
-      )}
+{/* 🤖 AI ChatGPT Suggestion */}
+{aiRecommendation && (
+  <div className="mt-6">
+    <h2 className="text-lg font-semibold mb-2 text-indigo-700 dark:text-indigo-300">
+      🤖 AI Health Suggestion:
+    </h2>
+    <p className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-line">
+      {aiRecommendation}
+    </p>
+  </div>
+)}
 
-      {/* Rule-Based Recommendations */}
-      <div className="mt-6">
-        <h2 className="font-semibold mb-2">AI Recommendations:</h2>
-        <ul className="list-disc pl-5 space-y-1 text-sm text-green-700 dark:text-green-400">
-          {getRecommendations(text, userData).map((item, idx) => (
-            <li key={idx}>{item}</li>
-          ))}
-        </ul>
-      </div>
-    </>
-  ) : (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ delay: 0.5 }}
-      className="text-gray-400 italic text-center mt-16"
-    >
-      Results will appear here after scanning
-    </motion.div>
-  )}
+
+      {/* ✅ Rule-Based Recommendations */}
+{typeof text === "string" && (
+  <div className="mt-6">
+    <h2 className="font-semibold mb-2">AI Recommendations:</h2>
+    <ul className="list-disc pl-5 space-y-1 text-sm text-green-700 dark:text-green-400">
+      {getRecommendations(text, userData).map((item, idx) => (
+        <li key={idx}>{item}</li>
+      ))}
+    </ul>
+  </div>
+)}
+</>
+) : (
+  <motion.div
+    initial={{ opacity: 0 }}
+    animate={{ opacity: 1 }}
+    transition={{ delay: 0.5 }}
+    className="text-gray-400 italic text-center mt-16"
+  >
+    Results will appear here after scanning
+  </motion.div>
+)}
 </motion.div>
 </motion.div>
 
-{/* Toast Notification */}
+{/* ✅ Toast Notification */}
 <AnimatePresence>
   {showToast && (
     <motion.div
@@ -350,7 +414,8 @@ return (
       exit={{ y: 100, opacity: 0 }}
       className="fixed bottom-6 right-6 bg-green-600 text-white px-4 py-3 rounded-xl shadow-lg flex items-center gap-2"
     >
-      <CheckCircle className="w-5 h-5" /> Scanned successfully!
+      <CheckCircle className="w-5 h-5" />
+      Scanned successfully!
     </motion.div>
   )}
 </AnimatePresence>
